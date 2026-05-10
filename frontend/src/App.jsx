@@ -8,6 +8,7 @@ function App() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [loadingId, setLoadingId] = useState(null);
+  const [quizLoadingId, setQuizLoadingId] = useState(null); // Added for Quiz loading state
 
   const fetchNotes = async () => {
     try {
@@ -47,6 +48,19 @@ function App() {
     }
   };
 
+  // --- NEW FUNCTIONALITY ---
+  const handleGenerateQuiz = async (id) => {
+    setQuizLoadingId(id);
+    try {
+      const res = await axios.put(`${ApiUrl}/${id}/generate-quiz`);
+      setNotes(notes.map((n) => (n._id === id ? res.data : n)));
+    } catch (error) {
+      alert("Quiz generation failed. Check your servers!");
+    } finally {
+      setQuizLoadingId(null);
+    }
+  };
+
   const deleteNote = async (id) => {
     if (!window.confirm("Delete this note?")) return;
     try {
@@ -60,7 +74,6 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-red-950 to-black text-white px-4 py-10">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-10">
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
             AI Study <span className="text-red-400">Journal</span>
@@ -70,7 +83,6 @@ function App() {
           </p>
         </div>
 
-        {/* Form */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-xl mb-10">
           <form onSubmit={addNote} className="space-y-4">
             <input
@@ -91,7 +103,6 @@ function App() {
           </form>
         </div>
 
-        {/* Notes */}
         <div className="space-y-6">
           {notes.length === 0 ? (
             <div className="text-center text-white/30 py-20 border border-dashed border-white/10 rounded-xl">
@@ -117,10 +128,26 @@ function App() {
                   {note.content}
                 </p>
 
+                {/* Summary Section */}
                 {note.summary && (
                   <div className="mt-4 p-4 bg-black/40 border-l-4 border-red-400 rounded">
-                    <p className="text-sm text-white/80 italic">
+                    <h3 className="text-xs font-bold uppercase text-red-400 mb-1">
+                      AI Summary
+                    </h3>
+                    <p className="text-sm text-white/80 italic whitespace-pre-wrap">
                       {note.summary}
+                    </p>
+                  </div>
+                )}
+
+                {/* --- NEW QUIZ SECTION --- */}
+                {note.quiz && (
+                  <div className="mt-4 p-4 bg-blue-950/20 border-l-4 border-blue-400 rounded">
+                    <h3 className="text-xs font-bold uppercase text-blue-400 mb-1">
+                      Practice Quiz
+                    </h3>
+                    <p className="text-sm text-white/80 whitespace-pre-wrap">
+                      {note.quiz}
                     </p>
                   </div>
                 )}
@@ -129,13 +156,19 @@ function App() {
                   <button
                     onClick={() => handleSummarize(note._id)}
                     disabled={loadingId === note._id}
-                    className="flex-1 bg-white text-black py-2 rounded-lg font-semibold hover:bg-red-100"
+                    className="flex-1 bg-white text-black py-2 rounded-lg font-semibold hover:bg-red-100 disabled:opacity-50"
                   >
-                    {loadingId === note._id ? "Analyzing..." : "AI Summarize"}
+                    {loadingId === note._id ? "Summarizing..." : "AI Summarize"}
                   </button>
 
-                  <button className="flex-1 border border-white/20 py-2 rounded-lg opacity-50">
-                    Generate Quiz
+                  <button
+                    onClick={() => handleGenerateQuiz(note._id)}
+                    disabled={quizLoadingId === note._id}
+                    className="flex-1 border border-white/20 py-2 rounded-lg hover:bg-white/10 transition disabled:opacity-50"
+                  >
+                    {quizLoadingId === note._id
+                      ? "Creating Quiz..."
+                      : "Generate Quiz"}
                   </button>
                 </div>
               </div>
