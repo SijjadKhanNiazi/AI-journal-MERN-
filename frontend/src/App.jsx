@@ -1,21 +1,30 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import SummaryCard from "./components/SummaryCard";
+import QuizCard from "./components/QuizCard";
 
 const ApiUrl = "http://localhost:5000/api/notes";
 
 function App() {
   const [notes, setNotes] = useState([]);
+  const [selectedNote, setSelectedNote] = useState(null);
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+
   const [loadingId, setLoadingId] = useState(null);
-  const [quizLoadingId, setQuizLoadingId] = useState(null); // Added for Quiz loading state
+  const [quizLoadingId, setQuizLoadingId] = useState(null);
 
   const fetchNotes = async () => {
     try {
       const response = await axios.get(ApiUrl);
       setNotes(response.data);
+
+      if (response.data.length > 0) {
+        setSelectedNote(response.data[0]);
+      }
     } catch (error) {
-      console.log("Error getting notes", error);
+      console.error(error);
     }
   };
 
@@ -25,37 +34,58 @@ function App() {
 
   const addNote = async (e) => {
     e.preventDefault();
-    if (!title || !content) return alert("Please fill all fields!");
+
+    if (!title || !content) {
+      return alert("Please fill all fields");
+    }
+
     try {
-      const res = await axios.post(ApiUrl, { title, content });
-      setNotes([res.data, ...notes]);
+      const res = await axios.post(ApiUrl, {
+        title,
+        content,
+      });
+
+      const updatedNotes = [res.data, ...notes];
+
+      setNotes(updatedNotes);
+      setSelectedNote(res.data);
+
       setTitle("");
       setContent("");
     } catch (error) {
-      console.log("Error saving notes", error);
+      console.error(error);
     }
   };
 
   const handleSummarize = async (id) => {
     setLoadingId(id);
+
     try {
       const res = await axios.put(`${ApiUrl}/${id}/summarize`);
-      setNotes(notes.map((n) => (n._id === id ? res.data : n)));
+
+      const updatedNotes = notes.map((n) => (n._id === id ? res.data : n));
+
+      setNotes(updatedNotes);
+      setSelectedNote(res.data);
     } catch (error) {
-      alert("Make sure both Node.js and FastAPI servers are running!");
+      alert("Check servers!");
     } finally {
       setLoadingId(null);
     }
   };
 
-  // --- NEW FUNCTIONALITY ---
   const handleGenerateQuiz = async (id) => {
     setQuizLoadingId(id);
+
     try {
       const res = await axios.put(`${ApiUrl}/${id}/generate-quiz`);
-      setNotes(notes.map((n) => (n._id === id ? res.data : n)));
+
+      const updatedNotes = notes.map((n) => (n._id === id ? res.data : n));
+
+      setNotes(updatedNotes);
+      setSelectedNote(res.data);
     } catch (error) {
-      alert("Quiz generation failed. Check your servers!");
+      alert("Quiz generation failed!");
     } finally {
       setQuizLoadingId(null);
     }
@@ -63,118 +93,163 @@ function App() {
 
   const deleteNote = async (id) => {
     if (!window.confirm("Delete this note?")) return;
+
     try {
       await axios.delete(`${ApiUrl}/${id}`);
-      setNotes(notes.filter((n) => n._id !== id));
+
+      const filtered = notes.filter((n) => n._id !== id);
+
+      setNotes(filtered);
+
+      if (selectedNote?._id === id) {
+        setSelectedNote(filtered[0] || null);
+      }
     } catch (error) {
-      console.log("Delete failed", error);
+      console.error(error);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-red-950 to-black text-white px-4 py-10">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+    <div className="h-screen bg-black text-white flex overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-[320px] border-r border-white/10 bg-zinc-950 flex flex-col">
+        {/* Logo */}
+        <div className="p-5 border-b border-white/10">
+          <h1 className="text-2xl font-bold">
             AI Study <span className="text-red-400">Journal</span>
           </h1>
-          <p className="text-white/50 mt-2 text-sm">
-            MERN + FastAPI + AI Assistant
-          </p>
+          <p className="text-xs text-white/40 mt-1">MERN + FastAPI + AI</p>
         </div>
 
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-xl mb-10">
-          <form onSubmit={addNote} className="space-y-4">
+        {/* Add Note */}
+        <div className="p-4 border-b border-white/10">
+          <form onSubmit={addNote} className="space-y-3">
             <input
+              type="text"
+              placeholder="Topic title..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter topic title"
-              className="w-full p-4 rounded-xl bg-black/40 border border-white/10 focus:border-red-400 outline-none"
+              className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm outline-none focus:border-red-400"
             />
+
             <textarea
+              placeholder="Write notes..."
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Write your notes..."
-              className="w-full p-4 h-40 rounded-xl bg-black/40 border border-white/10 focus:border-red-400 outline-none"
+              className="w-full h-24 bg-white/5 border border-white/10 rounded-lg p-3 text-sm outline-none resize-none focus:border-red-400"
             />
-            <button className="w-full bg-red-500 hover:bg-red-600 py-3 rounded-xl font-bold transition">
+
+            <button className="w-full bg-red-500 hover:bg-red-600 transition py-2 rounded-lg font-medium">
               Save Note
             </button>
           </form>
         </div>
 
-        <div className="space-y-6">
-          {notes.length === 0 ? (
-            <div className="text-center text-white/30 py-20 border border-dashed border-white/10 rounded-xl">
-              No notes yet
+        {/* Notes List */}
+        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+          {notes.map((note) => (
+            <div
+              key={note._id}
+              onClick={() => setSelectedNote(note)}
+              className={`p-3 rounded-xl cursor-pointer transition border ${
+                selectedNote?._id === note._id
+                  ? "bg-white/10 border-red-400"
+                  : "bg-white/[0.03] border-white/5 hover:bg-white/[0.06]"
+              }`}
+            >
+              <div className="flex justify-between items-start gap-2">
+                <h2 className="font-semibold text-sm truncate">{note.title}</h2>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteNote(note._id);
+                  }}
+                  className="text-xs text-white/40 hover:text-red-400"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-xs text-white/40 mt-2 line-clamp-2">
+                {note.content}
+              </p>
             </div>
-          ) : (
-            notes.map((note) => (
-              <div
-                key={note._id}
-                className="bg-white/5 border border-white/10 p-6 rounded-2xl hover:border-red-400/40 transition"
-              >
-                <div className="flex justify-between items-start gap-4">
-                  <h2 className="text-xl font-bold">{note.title}</h2>
-                  <button
-                    onClick={() => deleteNote(note._id)}
-                    className="text-red-400 hover:text-red-300"
-                  >
-                    Delete
-                  </button>
-                </div>
+          ))}
+        </div>
+      </div>
 
-                <p className="text-white/70 mt-3 text-sm leading-relaxed">
-                  {note.content}
-                </p>
+      <div className="flex-1 flex flex-col bg-gradient-to-b from-zinc-950 to-black">
+        {!selectedNote ? (
+          <div className="flex flex-1 items-center justify-center text-white/30">
+            Select a note to view
+          </div>
+        ) : (
+          <>
+            <div className="border-b border-white/10 p-5">
+              <h2 className="text-2xl font-bold">{selectedNote.title}</h2>
+            </div>
 
-                {/* Summary Section */}
-                {note.summary && (
-                  <div className="mt-4 p-4 bg-black/40 border-l-4 border-red-400 rounded">
-                    <h3 className="text-xs font-bold uppercase text-red-400 mb-1">
-                      AI Summary
-                    </h3>
-                    <p className="text-sm text-white/80 italic whitespace-pre-wrap">
-                      {note.summary}
-                    </p>
-                  </div>
-                )}
-
-                {/* --- NEW QUIZ SECTION --- */}
-                {note.quiz && (
-                  <div className="mt-4 p-4 bg-blue-950/20 border-l-4 border-blue-400 rounded">
-                    <h3 className="text-xs font-bold uppercase text-blue-400 mb-1">
-                      Practice Quiz
-                    </h3>
-                    <p className="text-sm text-white/80 whitespace-pre-wrap">
-                      {note.quiz}
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex gap-3 mt-5">
-                  <button
-                    onClick={() => handleSummarize(note._id)}
-                    disabled={loadingId === note._id}
-                    className="flex-1 bg-white text-black py-2 rounded-lg font-semibold hover:bg-red-100 disabled:opacity-50"
-                  >
-                    {loadingId === note._id ? "Summarizing..." : "AI Summarize"}
-                  </button>
-
-                  <button
-                    onClick={() => handleGenerateQuiz(note._id)}
-                    disabled={quizLoadingId === note._id}
-                    className="flex-1 border border-white/20 py-2 rounded-lg hover:bg-white/10 transition disabled:opacity-50"
-                  >
-                    {quizLoadingId === note._id
-                      ? "Creating Quiz..."
-                      : "Generate Quiz"}
-                  </button>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* User Note */}
+              <div className="flex justify-end">
+                <div className="max-w-3xl bg-red-500 text-white rounded-2xl rounded-br-sm px-5 py-4">
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {selectedNote.content}
+                  </p>
                 </div>
               </div>
-            ))
-          )}
-        </div>
+
+              {/* Summary */}
+              {selectedNote.summary && (
+                <div className="flex justify-start">
+                  <div className="max-w-3xl bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-5 py-4">
+                    <h3 className="font-semibold text-red-400 mb-2">
+                      AI Summary
+                    </h3>
+
+                    <SummaryCard summary={selectedNote.summary} />
+                  </div>
+                </div>
+              )}
+
+              {selectedNote.quiz && (
+                <div className="flex justify-start">
+                  <div className="max-w-3xl bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-5 py-4">
+                    <h3 className="font-semibold text-blue-400 mb-2">
+                      Practice Quiz
+                    </h3>
+
+                    <QuizCard quiz={selectedNote.quiz} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-white/10 p-4 flex gap-3">
+              <button
+                onClick={() => handleSummarize(selectedNote._id)}
+                disabled={loadingId === selectedNote._id}
+                className="flex-1 bg-white text-black py-3 rounded-xl font-semibold hover:bg-red-100 transition disabled:opacity-50"
+              >
+                {loadingId === selectedNote._id
+                  ? "Summarizing..."
+                  : "AI Summarize"}
+              </button>
+
+              <button
+                onClick={() => handleGenerateQuiz(selectedNote._id)}
+                disabled={quizLoadingId === selectedNote._id}
+                className="flex-1 border border-white/10 bg-white/5 hover:bg-white/10 py-3 rounded-xl transition disabled:opacity-50"
+              >
+                {quizLoadingId === selectedNote._id
+                  ? "Generating..."
+                  : "Generate Quiz"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
